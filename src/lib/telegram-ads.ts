@@ -213,12 +213,16 @@ const showRichAds = async (): Promise<boolean> => {
   for (const method of RICH_METHODS) {
     const fn = controller[method];
     if (typeof fn !== "function" || !allowed(method)) continue;
+    // Interstitials can legitimately run for a full video; native pushes are
+    // instant, so a long wait there only means the trigger never settles.
+    const budget = method === "triggerInterstitialMixed" ? 90000 : 15000;
     try {
       const out = fn.call(controller);
       const res =
         out && typeof out.then === "function"
-          ? await withTimeout(out, 180000, `richads ${method}`)
+          ? await withTimeout(out, budget, `richads ${method}`)
           : out;
+
       // The SDK reports no-fill as `false` / "Ads not found".
       if (res === false) {
         lastAdError = `richads ${method}: Ads not found`;
