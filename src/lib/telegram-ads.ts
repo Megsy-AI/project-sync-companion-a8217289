@@ -1,21 +1,27 @@
-// Ads helper: RichAds (https://richads.com/publishers/telegram) only.
-// Rewarded/interstitial video first (highest paying), loaded and shown on demand.
-// Nothing is loaded until the user taps "Watch", so no auto banners or push ads.
+// Rewarded ads for a Telegram Mini App.
+// Primary: Adsgram (documented promise API, reliable no-fill signal).
+// Fallback: RichAds tg-ob.js (triggerInterstitialMixed is the only real trigger
+// in the live SDK bundle; its no-fill resolves false / "Ads not found").
+// Nothing is loaded until the user taps "Watch" — no auto banners, no push ads.
 
 const RICHADS_SDK = "https://richinfo.co/richpartners/telegram/js/tg-ob.js";
+const ADSGRAM_SDK = "https://sad.adsgram.ai/js/sad.min.js";
 
-const RICHADS_PUB_ID =
-  (import.meta.env.VITE_RICHADS_PUB_ID as string | undefined) ||
-  ((window as any).RICHADS_PUB_ID as string | undefined) ||
-  "998796";
+const env = import.meta.env as Record<string, string | undefined>;
+const win = () => window as any;
 
-const RICHADS_APP_ID =
-  (import.meta.env.VITE_RICHADS_APP_ID as string | undefined) ||
-  ((window as any).RICHADS_APP_ID as string | undefined) ||
-  "8586";
+const RICHADS_PUB_ID = env.VITE_RICHADS_PUB_ID || win().RICHADS_PUB_ID || "998796";
+const RICHADS_APP_ID = env.VITE_RICHADS_APP_ID || win().RICHADS_APP_ID || "8586";
+const ADSGRAM_BLOCK_ID = env.VITE_ADSGRAM_BLOCK_ID || win().ADSGRAM_BLOCK_ID || "";
+/** Forces Adsgram to serve a guaranteed test creative (stats-free). */
+const ADSGRAM_DEBUG = env.VITE_ADSGRAM_DEBUG === "true";
 
 /** Last failure reason, surfaced in the UI so problems are diagnosable. */
 export let lastAdError = "";
+
+export const isAdsReady = () => true;
+
+/* ------------------------------------------------------------------ utils */
 
 const scriptCache = new Map<string, Promise<boolean>>();
 
@@ -25,10 +31,20 @@ const loadScript = (src: string): Promise<boolean> => {
 
   const promise = new Promise<boolean>((resolve) => {
     try {
+      const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+      if (existing) {
+        if (existing.dataset.loaded === "1") return resolve(true);
+        existing.addEventListener("load", () => resolve(true));
+        existing.addEventListener("error", () => resolve(false));
+        return;
+      }
       const el = document.createElement("script");
       el.src = src;
       el.async = true;
-      el.onload = () => resolve(true);
+      el.onload = () => {
+        el.dataset.loaded = "1";
+        resolve(true);
+      };
       el.onerror = () => resolve(false);
       document.head.appendChild(el);
     } catch {
@@ -40,39 +56,6 @@ const loadScript = (src: string): Promise<boolean> => {
   return promise;
 };
 
-export const isAdsReady = () => true;
-
-let richController: any = null;
-let initialised = false;
-
-/** The SDK reads the Telegram user itself; it only works inside Telegram. */
-const telegramUserId = (): number | undefined =>
-  (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
-
-/** initDataUnsafe can populate a moment after the WebApp script runs. */
-const waitForTelegramUser = async (timeoutMs = 3000): Promise<boolean> => {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (telegramUserId()) return true;
-    try {
-      (window as any).Telegram?.WebApp?.ready?.();
-    } catch {
-      /* ignore */
-    }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  return !!telegramUserId();
-};
-
-/** RichAds only settles trigger promises after the rendered ad is closed. */
-const AD_METHODS = [
-  { method: "triggerInterstitialMixed", types: ["INTERSTITIAL_MIXED_TRIGGER"] },
-  { method: "triggerInterstitialVideo", types: ["INTERSTITIAL_VIDEO_TRIGGER"] },
-  { method: "triggerInterstitialBanner", types: ["INTERSTITIAL_BANNER_TRIGGER"] },
-  { method: "triggerNativeNotification", types: ["PUSH_STYLE_TRIGGER"] },
-] as const;
-
-/** Rejects if a promise hangs longer than `ms`. */
 const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
@@ -88,18 +71,88 @@ const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =
     );
   });
 
-const getRichController = async (): Promise<any> => {
-  if (richController && initialised) return richController;
+const telegramUserId = (): number | undefined =>
+  win().Telegram?.WebApp?.initDataUnsafe?.user?.id;
 
-  const loaded = await withTimeout(loadScript(RICHADS_SDK), 8000, "sdk").catch(() => false);
+/** initDataUnsafe can populate a moment after the WebApp script runs. */
+const waitForTelegramUser = async (timeoutMs = 3000): Promise<boolean> => {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (telegramUserId()) return true;
+    try {
+      win().Telegram?.WebApp?.ready?.();
+    } catch {
+      /* ignore */
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return !!telegramUserId();
+};
+
+export const isInsideTelegram = () => !!win().Telegram?.WebApp?.initData;
+
+/* --------------------------------------------------------------- adsgram */
+
+let adsgramController: any = null;
+
+const getAdsgram = async (): Promise<any> => {
+  if (adsgramController) return adsgramController;
+  if (!ADSGRAM_BLOCK_ID) return null;
+
+  const loaded = await withTimeout(loadScript(ADSGRAM_SDK), 8000, "adsgram sdk").catch(
+    () => false,
+  );
+  if (!loaded || typeof win().Adsgram?.init !== "function") return null;
+
+  try {
+    // init() is memoised per blockId by the SDK itself.
+    adsgramController = win().Adsgram.init({
+      blockId: String(ADSGRAM_BLOCK_ID),
+      debug: ADSGRAM_DEBUG,
+      debugConsole: false,
+    });
+  } catch {
+    adsgramController = null;
+  }
+  return adsgramController;
+};
+
+const showAdsgram = async (): Promise<boolean> => {
+  const ctrl = await getAdsgram();
+  if (!ctrl) return false;
+  try {
+    // Resolves only when the viewer watched the rewarded ad to the end.
+    const res = await withTimeout(Promise.resolve(ctrl.show()), 180000, "adsgram show");
+    if (res && res.done === false) {
+      lastAdError = "adsgram: ad not completed";
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    lastAdError = `adsgram: ${e?.description || e?.message || "no fill"}`;
+    return false;
+  }
+};
+
+/* --------------------------------------------------------------- richads */
+
+let richController: any = null;
+let richInitialised = false;
+
+const getRichController = async (): Promise<any> => {
+  if (richController && richInitialised) return richController;
+
+  const loaded = await withTimeout(loadScript(RICHADS_SDK), 8000, "richads sdk").catch(
+    () => false,
+  );
   if (!loaded) {
-    lastAdError = "SDK failed to load";
+    lastAdError = "richads: SDK failed to load";
     return null;
   }
 
-  const Ctor = (window as any).TelegramAdsController;
+  const Ctor = win().TelegramAdsController;
   if (typeof Ctor !== "function") {
-    lastAdError = "SDK unavailable";
+    lastAdError = "richads: SDK unavailable (blocked by CSP or ad blocker)";
     return null;
   }
 
@@ -111,75 +164,102 @@ const getRichController = async (): Promise<any> => {
   if (!richController) richController = new Ctor();
 
   try {
-    // initialize() resolves once the publisher configuration is fetched.
+    // initialize() is memoised per pubId+appId and resolves once config loads.
     await withTimeout(
       Promise.resolve(
-        richController.initialize({ pubId: RICHADS_PUB_ID, appId: String(RICHADS_APP_ID), debug: false }),
+        richController.initialize({
+          pubId: String(RICHADS_PUB_ID),
+          appId: String(RICHADS_APP_ID),
+          debug: false,
+        }),
       ),
       15000,
-      "init",
+      "richads init",
     );
-    initialised = true;
+    richInitialised = true;
   } catch (e: any) {
-    initialised = false;
-    // Drop the half-initialised instance so the next tap starts clean.
-    richController = null;
-    lastAdError = `init: ${e?.message ?? "failed"}`;
+    richInitialised = false;
+    richController = null; // drop the half-initialised instance
+    lastAdError = `richads init: ${e?.message ?? "failed"}`;
     return null;
   }
-
 
   return richController;
 };
 
-/**
- * Shows exactly one RichAds ad, only when called from a user action
- * (the "Watch" button). Tries every format, highest paying first.
- * Every step is time-boxed so the button never stays stuck on "Loading...".
- */
-export const showAd = async (): Promise<boolean> => {
-  lastAdError = "";
+/** Only these exist in the live tg-ob.js bundle, highest paying first. */
+const RICH_METHODS = ["triggerInterstitialMixed", "triggerNativeNotification"] as const;
+
+const showRichAds = async (): Promise<boolean> => {
   const controller = await getRichController();
   if (!controller) return false;
 
-  const enabledTypes = new Set<string>();
+  // activeWidgetTypesMap is filled server-side with the formats enabled for
+  // this app; when present we can skip triggers that will silently no-fill.
+  const enabled = new Set<string>();
   const typeMap = controller.activeWidgetTypesMap;
   if (typeMap && typeof typeMap.keys === "function") {
-    for (const type of typeMap.keys()) enabledTypes.add(String(type));
+    for (const type of typeMap.keys()) enabled.add(String(type).toUpperCase());
   }
 
-  const availableMethods = AD_METHODS.filter(({ method, types }) => {
-    if (typeof controller[method] !== "function") return false;
-    return enabledTypes.size === 0 || types.some((type) => enabledTypes.has(type));
-  });
+  const allowed = (method: string) => {
+    if (!enabled.size) return true;
+    if (method === "triggerInterstitialMixed") {
+      return [...enabled].some((t) => t.includes("INTERSTITIAL") || t.includes("VIDEO"));
+    }
+    return [...enabled].some((t) => t.includes("PUSH") || t.includes("NATIVE"));
+  };
 
-  for (const { method } of availableMethods) {
+  for (const method of RICH_METHODS) {
     const fn = controller[method];
-    if (typeof fn !== "function") continue;
+    if (typeof fn !== "function" || !allowed(method)) continue;
     try {
       const out = fn.call(controller);
-      if (out && typeof out.then === "function") {
-        try {
-          // This promise resolves when the viewer closes/completes the ad.
-          const res = await withTimeout(out, 90000, method);
-          if (res === false) continue;
-          return true;
-        } catch (err: any) {
-          throw err;
-        }
+      const res =
+        out && typeof out.then === "function"
+          ? await withTimeout(out, 180000, `richads ${method}`)
+          : out;
+      // The SDK reports no-fill as `false` / "Ads not found".
+      if (res === false) {
+        lastAdError = `richads ${method}: Ads not found`;
+        continue;
       }
-      if (out === false) continue;
       return true;
     } catch (e: any) {
-      lastAdError = `${method}: ${e?.message ?? "no fill"}`;
-      // no fill for this format, try the next one
+      lastAdError = `richads ${method}: ${e?.message ?? "no fill"}`;
     }
   }
+
   if (!lastAdError) {
-    lastAdError = enabledTypes.size
-      ? "No ad fill is available for the enabled formats"
+    lastAdError = enabled.size
+      ? "No ad fill for the enabled RichAds formats"
       : "No ad format is enabled for this Mini App";
   }
   return false;
 };
 
+/* ------------------------------------------------------------------ public */
+
+/**
+ * Shows exactly one rewarded ad, only from a user gesture ("Watch" button).
+ * Adsgram first (clean reward semantics), RichAds as fallback.
+ * Every step is time-boxed so the button never stays stuck on "Loading...".
+ */
+export const showAd = async (): Promise<boolean> => {
+  lastAdError = "";
+
+  if (!isInsideTelegram()) {
+    lastAdError = "Ads only work inside Telegram";
+    return false;
+  }
+
+  if (await showAdsgram()) return true;
+  const adsgramError = lastAdError;
+
+  if (await showRichAds()) return true;
+
+  if (adsgramError && lastAdError && adsgramError !== lastAdError) {
+    lastAdError = `${adsgramError} | ${lastAdError}`;
+  }
+  return lastAdError ? false : ((lastAdError = "No ad available right now"), false);
+};

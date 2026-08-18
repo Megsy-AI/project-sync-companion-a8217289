@@ -542,16 +542,8 @@ const WalletPage = () => {
 
       <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
         <DialogContent className="fixed bottom-auto left-1/2 right-auto top-1/2 w-[calc(100%-2rem)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[32px] border-0 bg-transparent p-0 shadow-none sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-[360px] sm:-translate-x-1/2 sm:-translate-y-1/2">
-          <div
-            className="relative rounded-[32px] px-7 pb-8 pt-9 text-center"
-            style={{
-              background: "hsl(0 0% 100% / 0.85)",
-              backdropFilter: "blur(32px) saturate(180%)",
-              WebkitBackdropFilter: "blur(32px) saturate(180%)",
-              border: "1px solid hsl(160 18% 90%)",
-              boxShadow: "0 24px 70px -20px rgba(0,0,0,0.6), inset 0 1px 0 hsl(0 0% 100% / 0.12)",
-            }}
-          >
+          <div className="wallet-dialog-surface relative rounded-[32px] px-7 pb-8 pt-9 text-center">
+
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-24 rounded-t-[32px] opacity-40"
               style={{
@@ -610,16 +602,8 @@ const WalletPage = () => {
 
       <Dialog open={reqOpen !== null} onOpenChange={(o) => !o && setReqOpen(null)}>
         <DialogContent className="fixed bottom-auto left-1/2 right-auto top-1/2 w-[calc(100%-2rem)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[32px] border-0 bg-transparent p-0 shadow-none sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-[360px] sm:-translate-x-1/2 sm:-translate-y-1/2">
-          <div
-            className="relative rounded-[32px] px-7 pb-8 pt-9 text-center"
-            style={{
-              background: "hsl(0 0% 100% / 0.85)",
-              backdropFilter: "blur(32px) saturate(180%)",
-              WebkitBackdropFilter: "blur(32px) saturate(180%)",
-              border: "1px solid hsl(160 18% 90%)",
-              boxShadow: "0 24px 70px -20px rgba(0,0,0,0.6), inset 0 1px 0 hsl(0 0% 100% / 0.12)",
-            }}
-          >
+          <div className="wallet-dialog-surface relative rounded-[32px] px-7 pb-8 pt-9 text-center">
+
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-24 rounded-t-[32px] opacity-40"
               style={{
