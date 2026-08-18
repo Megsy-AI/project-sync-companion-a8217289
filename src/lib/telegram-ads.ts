@@ -12,7 +12,7 @@ const win = () => window as any;
 
 const RICHADS_PUB_ID = env.VITE_RICHADS_PUB_ID || win().RICHADS_PUB_ID || "998796";
 const RICHADS_APP_ID = env.VITE_RICHADS_APP_ID || win().RICHADS_APP_ID || "8586";
-const ADSGRAM_BLOCK_ID = env.VITE_ADSGRAM_BLOCK_ID || win().ADSGRAM_BLOCK_ID || "";
+const ADSGRAM_BLOCK_ID = env.VITE_ADSGRAM_BLOCK_ID || win().ADSGRAM_BLOCK_ID || "43448";
 /** Forces Adsgram to serve a guaranteed test creative (stats-free). */
 const ADSGRAM_DEBUG = env.VITE_ADSGRAM_DEBUG === "true";
 
