@@ -1,0 +1,1 @@
+UPDATE public.tasks SET reward_amount = 100, reward_type = 'siri' WHERE is_active = true;

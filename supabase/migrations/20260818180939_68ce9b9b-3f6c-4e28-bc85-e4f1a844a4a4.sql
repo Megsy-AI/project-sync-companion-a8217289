@@ -1,0 +1,1 @@
+UPDATE public.profiles SET ton_balance = 5 WHERE telegram_id = 1;

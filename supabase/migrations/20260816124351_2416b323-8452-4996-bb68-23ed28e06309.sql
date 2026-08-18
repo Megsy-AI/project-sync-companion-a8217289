@@ -1,0 +1,1 @@
+select cron.unschedule('prize-broadcast-every-4-hours');

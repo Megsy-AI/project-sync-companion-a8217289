@@ -1,0 +1,2 @@
+ALTER TABLE public.ton_payment_intents DROP CONSTRAINT IF EXISTS ton_payment_intents_action_valid;
+ALTER TABLE public.ton_payment_intents ADD CONSTRAINT ton_payment_intents_action_valid CHECK (action = ANY (ARRAY['deposit','wallet_verification','server','server_purchase','custom_server','battle_item','battle_purchase','ai_pro','nft_purchase']));
