@@ -1,1 +1,41 @@
 project_id = "ltgampdtawuefwwayncx"
+
+[functions.generate-nft]
+verify_jwt = false
+
+[functions.telegram-bot]
+verify_jwt = false
+
+[functions.channel-poster]
+verify_jwt = false
+
+[functions.send-notifications]
+verify_jwt = false
+
+[functions.tonconnect-manifest]
+verify_jwt = false
+
+[functions.verify-ton-transaction]
+verify_jwt = false
+
+[functions.create-ton-payment-intent]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.ai-media]
+verify_jwt = false
+
+[functions.ai-subscription]
+verify_jwt = false
+
+[functions.ai-deapi]
+verify_jwt = false
+
+[functions.battle-bots]
+verify_jwt = false
+
+[functions.ai-smart-offer]
+verify_jwt = false
+

@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ALTER COLUMN reward_expires_at SET DEFAULT (now() + interval '48 hours');
