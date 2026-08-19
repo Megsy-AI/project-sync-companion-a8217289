@@ -190,8 +190,10 @@ const WalletPage = () => {
       const tx = await sendTonPayment(tonConnectUI, { amountTon: amount, telegramId: user.telegramUser.id, action: "deposit" });
       const verification = await verifyTonOnChain(tx.intentId, tx.boc, tonConnectUI.account?.address);
       if (!verification.verified) throw new PaymentError("failed", verification.error ?? "Payment is still confirming");
-      await createTransaction({ telegramId: user.telegramUser.id, type: "deposit", amount, currency: "ton", walletAddress: address, txHash: verification.tx_hash });
-      toast({ title: "Deposit Sent", description: `${amount} Gram submitted` });
+      const credit = await creditDepositWithIntent({ telegramId: user.telegramUser.id, intentId: tx.intentId, walletAddress: address });
+      if (!credit?.success) throw new PaymentError("failed", "Payment confirmed but crediting failed. Contact support.");
+      await refreshProfile();
+      toast({ title: "Deposit credited", description: `${credit.amount ?? amount} Gram added to your balance` });
       setDepositOpen(false);
       setDepositAmount("");
     } catch (err) {
