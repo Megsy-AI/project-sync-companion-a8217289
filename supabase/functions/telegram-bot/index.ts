@@ -728,90 +728,10 @@ serve(async (req) => {
         result = await response.json();
         break;
       }
-      case 'verifyTonTransaction': {
-        const expectedAmount = Number(body.expected_amount_ton);
-        if (!Number.isFinite(expectedAmount) || expectedAmount <= 0 || !body.boc) {
-          result = { verified: false, error: 'Invalid verification request' };
-          break;
-        }
+      // NOTE: the legacy amount-only 'verifyTonTransaction' case was removed.
+      // All TON payments are verified by the `verify-ton-transaction` function,
+      // which matches the unique per-payment memo and marks the intent as used.
 
-        const expectedNano = BigInt(Math.round(expectedAmount * 1e9));
-        // Wallets deduct forward fees, so allow a slightly wider band on both sides.
-        const minNano = (expectedNano * 96n) / 100n;
-        const maxNano = (expectedNano * 104n) / 100n;
-        const treasury = 'UQAp1QxnLJ2z44IooUovvtVShw7hJBEdxCRV3RlbCYC3D8qj';
-        // Only raw addresses ("0:<64 hex>") can be compared safely; user-friendly
-        // base64 addresses (UQ.../EQ...) are skipped so they never block a real payment.
-        const rawSender = String(body.sender ?? '').trim().toLowerCase();
-        const senderTail = /^-?\d+:[0-9a-f]{64}$/.test(rawSender) ? rawSender.slice(-40) : '';
-        const WINDOW_SECONDS = 900; // TON can take a couple of minutes to settle.
-        let matched: { hash: string; value: string } | null = null;
-        let fallback: { hash: string; value: string } | null = null;
-        let lastError = '';
-
-        const fromTonapi = async () => {
-          const r = await fetch(
-            `https://tonapi.io/v2/blockchain/accounts/${treasury}/transactions?limit=30`,
-            { headers: { Accept: 'application/json' } },
-          );
-          if (!r.ok) { lastError = `tonapi ${r.status}`; return null; }
-          const payload = await r.json();
-          const now = Math.floor(Date.now() / 1000);
-          for (const t of payload?.transactions ?? []) {
-            const inMsg = t?.in_msg;
-            if (!inMsg || !inMsg.source) continue; // skip external messages
-            if (now - Number(t?.utime ?? 0) > WINDOW_SECONDS) continue;
-            const value = BigInt(inMsg?.value ?? '0');
-            if (value < minNano || value > maxNano) continue;
-            const hit = { hash: String(t?.hash ?? ''), value: String(value) };
-            if (senderTail) {
-              const src = String(inMsg?.source?.address ?? '').toLowerCase();
-              if (!src.endsWith(senderTail)) { fallback ??= hit; continue; }
-            }
-            return hit;
-          }
-          return null;
-        };
-
-        const fromToncenter = async () => {
-          const r = await fetch(
-            `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(treasury)}&limit=30`,
-            { headers: { Accept: 'application/json' } },
-          );
-          if (!r.ok) { lastError = `toncenter ${r.status}`; return null; }
-          const payload = await r.json();
-          const now = Math.floor(Date.now() / 1000);
-          for (const t of payload?.result ?? []) {
-            const inMsg = t?.in_msg;
-            if (!inMsg?.source) continue;
-            if (now - Number(t?.utime ?? 0) > WINDOW_SECONDS) continue;
-            const value = BigInt(inMsg?.value ?? '0');
-            if (value < minNano || value > maxNano) continue;
-            // toncenter returns user-friendly addresses, so sender matching is skipped here.
-            return { hash: String(t?.transaction_id?.hash ?? ''), value: String(value) };
-          }
-          return null;
-        };
-
-        for (let attempt = 0; attempt < 8 && !matched; attempt++) {
-          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 4000));
-          try { matched = await fromTonapi(); } catch (e) { lastError = String(e); }
-          if (matched) break;
-          try { matched = await fromToncenter(); } catch (e) { lastError = String(e); }
-        }
-
-        // A payment with the right amount inside the window, but from an address we
-        // could not match, is still accepted rather than lost.
-        if (!matched && fallback) matched = fallback;
-
-        result = matched
-          ? { verified: true, tx_hash: matched.hash, amount_nano: matched.value }
-          : {
-              verified: false,
-              error: `Transaction not found on-chain yet${lastError ? ` (${lastError})` : ''}`,
-            };
-        break;
-      }
       case 'prizeBroadcast': {
         const PRIZE_IMAGE =
           'https://f7ebd660-aa64-45d5-8e89-2003f4b0bb3e.lovableproject.com/__l5e/assets-v1/d72c7d9e-0f0d-4e37-b64c-e43ce02b4b8e/prize-banner-monthly.jpg';
