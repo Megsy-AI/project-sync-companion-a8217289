@@ -20,5 +20,5 @@ export function resolveAppOrigin(env = process.env) {
     }
   }
 
-  return "https://spark-companion-link-33a5cbb564649.vercel.app";
+  return "https://megsy.online";
 }

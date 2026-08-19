@@ -25,7 +25,7 @@ const appShell = resolve(distDir, "index.html");
 const appOrigin = resolveAppOrigin();
 const manifest = {
   url: appOrigin,
-  name: "NOVA AI",
+  name: "Nova Coin",
   iconUrl: `${appOrigin}/images/nova-logo.png`,
   termsOfUseUrl: appOrigin,
   privacyPolicyUrl: appOrigin,

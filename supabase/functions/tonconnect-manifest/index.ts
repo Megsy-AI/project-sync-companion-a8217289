@@ -8,13 +8,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_ORIGIN = "https://spark-companion-link-33a5cbb564649.vercel.app";
-const ICON_URL = "https://spark-companion-link-33a5cbb564649.vercel.app/images/nova-logo.png";
+const DEFAULT_ORIGIN = "https://megsy.online";
+const ICON_URL = "https://megsy.online/images/nova-logo.png";
 
 const ALLOWED_HOST_SUFFIXES = [
   ".lovable.app",
   ".lovableproject.com",
   "megsyai.com",
+  "megsy.online",
   ".vercel.app",
   ".netlify.app",
 ];
@@ -42,7 +43,7 @@ Deno.serve((req) => {
 
   const manifest = {
     url: origin,
-    name: "NOVA AI",
+    name: "Nova Coin",
     iconUrl: ICON_URL,
     termsOfUseUrl: origin,
     privacyPolicyUrl: origin,
