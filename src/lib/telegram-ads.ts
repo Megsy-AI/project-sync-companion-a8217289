@@ -1,20 +1,17 @@
-// Rewarded ads for a Telegram Mini App.
-// Primary: Adsgram (documented promise API, reliable no-fill signal).
-// Fallback: RichAds tg-ob.js (triggerInterstitialMixed is the only real trigger
-// in the live SDK bundle; its no-fill resolves false / "Ads not found").
-// Nothing is loaded until the user taps "Watch" — no auto banners, no push ads.
+// Rewarded ads for a Telegram Mini App — RichAds only (tg-ob.js).
+// Nothing loads until the user taps "Watch". Every step is time-boxed so the
+// button can never stay stuck on "Loading...".
 
 const RICHADS_SDK = "https://richinfo.co/richpartners/telegram/js/tg-ob.js";
-const ADSGRAM_SDK = "https://sad.adsgram.ai/js/sad.min.js";
 
 const env = import.meta.env as Record<string, string | undefined>;
 const win = () => window as any;
 
 const RICHADS_PUB_ID = env.VITE_RICHADS_PUB_ID || win().RICHADS_PUB_ID || "998796";
 const RICHADS_APP_ID = env.VITE_RICHADS_APP_ID || win().RICHADS_APP_ID || "8586";
-const ADSGRAM_BLOCK_ID = env.VITE_ADSGRAM_BLOCK_ID || win().ADSGRAM_BLOCK_ID || "43448";
-/** Forces Adsgram to serve a guaranteed test creative (stats-free). */
-const ADSGRAM_DEBUG = env.VITE_ADSGRAM_DEBUG === "true";
+
+/** Hard ceiling for the whole showAd() call, so the UI always unblocks. */
+const TOTAL_BUDGET_MS = 45000;
 
 /** Last failure reason, surfaced in the UI so problems are diagnosable. */
 export let lastAdError = "";
@@ -91,49 +88,6 @@ const waitForTelegramUser = async (timeoutMs = 3000): Promise<boolean> => {
 
 export const isInsideTelegram = () => !!win().Telegram?.WebApp?.initData;
 
-/* --------------------------------------------------------------- adsgram */
-
-let adsgramController: any = null;
-
-const getAdsgram = async (): Promise<any> => {
-  if (adsgramController) return adsgramController;
-  if (!ADSGRAM_BLOCK_ID) return null;
-
-  const loaded = await withTimeout(loadScript(ADSGRAM_SDK), 8000, "adsgram sdk").catch(
-    () => false,
-  );
-  if (!loaded || typeof win().Adsgram?.init !== "function") return null;
-
-  try {
-    // init() is memoised per blockId by the SDK itself.
-    adsgramController = win().Adsgram.init({
-      blockId: String(ADSGRAM_BLOCK_ID),
-      debug: ADSGRAM_DEBUG,
-      debugConsole: false,
-    });
-  } catch {
-    adsgramController = null;
-  }
-  return adsgramController;
-};
-
-const showAdsgram = async (): Promise<boolean> => {
-  const ctrl = await getAdsgram();
-  if (!ctrl) return false;
-  try {
-    // Resolves only when the viewer watched the rewarded ad to the end.
-    const res = await withTimeout(Promise.resolve(ctrl.show()), 180000, "adsgram show");
-    if (res && res.done === false) {
-      lastAdError = "adsgram: ad not completed";
-      return false;
-    }
-    return true;
-  } catch (e: any) {
-    lastAdError = `adsgram: ${e?.description || e?.message || "no fill"}`;
-    return false;
-  }
-};
-
 /* --------------------------------------------------------------- richads */
 
 let richController: any = null;
@@ -164,7 +118,6 @@ const getRichController = async (): Promise<any> => {
   if (!richController) richController = new Ctor();
 
   try {
-    // initialize() is memoised per pubId+appId and resolves once config loads.
     await withTimeout(
       Promise.resolve(
         richController.initialize({
@@ -173,7 +126,7 @@ const getRichController = async (): Promise<any> => {
           debug: false,
         }),
       ),
-      15000,
+      12000,
       "richads init",
     );
     richInitialised = true;
@@ -213,9 +166,7 @@ const showRichAds = async (): Promise<boolean> => {
   for (const method of RICH_METHODS) {
     const fn = controller[method];
     if (typeof fn !== "function" || !allowed(method)) continue;
-    // Interstitials can legitimately run for a full video; native pushes are
-    // instant, so a long wait there only means the trigger never settles.
-    const budget = method === "triggerInterstitialMixed" ? 90000 : 15000;
+    const budget = method === "triggerInterstitialMixed" ? 25000 : 10000;
     try {
       const out = fn.call(controller);
       const res =
@@ -246,8 +197,7 @@ const showRichAds = async (): Promise<boolean> => {
 
 /**
  * Shows exactly one rewarded ad, only from a user gesture ("Watch" button).
- * Adsgram first (clean reward semantics), RichAds as fallback.
- * Every step is time-boxed so the button never stays stuck on "Loading...".
+ * Guaranteed to settle within TOTAL_BUDGET_MS.
  */
 export const showAd = async (): Promise<boolean> => {
   lastAdError = "";
@@ -257,13 +207,10 @@ export const showAd = async (): Promise<boolean> => {
     return false;
   }
 
-  if (await showAdsgram()) return true;
-  const adsgramError = lastAdError;
-
-  if (await showRichAds()) return true;
-
-  if (adsgramError && lastAdError && adsgramError !== lastAdError) {
-    lastAdError = `${adsgramError} | ${lastAdError}`;
+  try {
+    return await withTimeout(showRichAds(), TOTAL_BUDGET_MS, "ad");
+  } catch (e: any) {
+    if (!lastAdError) lastAdError = `richads: ${e?.message ?? "timeout"}`;
+    return false;
   }
-  return lastAdError ? false : ((lastAdError = "No ad available right now"), false);
 };
