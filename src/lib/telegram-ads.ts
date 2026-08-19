@@ -8,7 +8,11 @@ const env = import.meta.env as Record<string, string | undefined>;
 const win = () => window as any;
 
 const RICHADS_PUB_ID = env.VITE_RICHADS_PUB_ID || win().RICHADS_PUB_ID || "998796";
-const RICHADS_APP_ID = env.VITE_RICHADS_APP_ID || win().RICHADS_APP_ID || "8586";
+/** One RichAds app per enabled format (e.g. Interstitial, Playable). */
+const RICHADS_APP_IDS = (env.VITE_RICHADS_APP_IDS || win().RICHADS_APP_IDS || "405074,405075")
+  .split(",")
+  .map((s: string) => s.trim())
+  .filter(Boolean);
 
 /** Hard ceiling for the whole showAd() call, so the UI always unblocks. */
 const TOTAL_BUDGET_MS = 45000;
