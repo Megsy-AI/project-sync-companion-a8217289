@@ -270,14 +270,12 @@ const WalletPage = () => {
       });
       const verification = await verifyTonOnChain(tx.intentId, tx.boc, tonConnectUI.account?.address);
       if (!verification.verified) throw new PaymentError("failed", verification.error ?? "Payment is still confirming");
-      await createTransaction({
+      const marked = await verifyWalletWithIntent({
         telegramId: user.telegramUser.id,
-        type: "wallet_verification",
-        amount: VERIFY_AMOUNT,
-        currency: "ton",
+        intentId: tx.intentId,
         walletAddress: address,
-        txHash: verification.tx_hash || null,
       });
+      if (!marked?.success) throw new PaymentError("failed", "Payment confirmed but verification failed. Contact support.");
       setIsVerified(true);
       setVerifyOpen(false);
       toast({ title: "Wallet verified", description: "Your wallet ownership is confirmed" });
