@@ -34,7 +34,7 @@ const STAR_PACKS: { id: StarsProductId; usdt: number }[] = [
 ];
 
 const WalletPage = () => {
-  const { user } = useApp();
+  const { user, refreshProfile } = useApp();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [tonConnectUI] = useTonConnectUI();
