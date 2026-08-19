@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentError, sendTonPayment } from "@/lib/ton";
-import { verifyTonOnChain } from "@/lib/game-api";
+import { creditDepositWithIntent, verifyTonOnChain } from "@/lib/game-api";
 
 /** Multiplier curve — must match the server-side validation (1.07^seconds). */
 const curve = (seconds: number) => Math.pow(1.07, seconds);
@@ -262,9 +262,20 @@ const CrashGame = () => {
         metadata: { source: "crash" },
       });
       const verification = await verifyTonOnChain(tx.intentId, tx.boc, tonConnectUI.account?.address);
-      await refreshProfile();
       if (!verification.verified) {
         setResult("Top-up sent — it will be credited shortly.");
+        return false;
+      }
+      // The payment only becomes playable balance once the backend credits the
+      // confirmed intent (each intent can be credited a single time).
+      const credit = await creditDepositWithIntent({
+        telegramId: user.telegramUser.id,
+        intentId: tx.intentId,
+        walletAddress: tonConnectUI.account?.address,
+      });
+      await refreshProfile();
+      if (!credit?.success) {
+        setResult("Top-up received — balance will update shortly.");
         return false;
       }
       setResult(`Topped up ${fmt(tx.amountTon)}`);
