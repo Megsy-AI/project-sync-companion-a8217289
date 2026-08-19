@@ -1,10 +1,17 @@
 // Resolves the public origin a deployment is actually served from.
 // Vercel changes the deployment hostname on every build, so the TON Connect
 // manifest must be generated from the environment instead of a hard-coded URL.
+const CANONICAL_ORIGIN = "https://www.megsy.online";
+
 export function resolveAppOrigin(env = process.env) {
+  // The mini app is always opened from the canonical custom domain, which
+  // 308-redirects megsy.online -> www.megsy.online. Vercel's generated
+  // deployment hostnames must never win, or the TON Connect manifest url
+  // stops matching the origin wallets actually see.
   const candidates = [
     env.PUBLIC_APP_ORIGIN,
     env.VITE_PUBLIC_APP_ORIGIN,
+    CANONICAL_ORIGIN,
     env.VERCEL_PROJECT_PRODUCTION_URL,
     env.VERCEL_BRANCH_URL,
     env.VERCEL_URL,
@@ -20,5 +27,5 @@ export function resolveAppOrigin(env = process.env) {
     }
   }
 
-  return "https://megsy.online";
+  return CANONICAL_ORIGIN;
 }
