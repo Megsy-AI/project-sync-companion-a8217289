@@ -243,7 +243,17 @@ const WalletPage = () => {
       toast({ title: `Minimum ${min} ${withdrawCurrency.toUpperCase()}`, variant: "destructive" });
       return;
     }
-    await createTransaction({ telegramId: user.telegramUser.id, type: "withdrawal", amount, currency: withdrawCurrency, walletAddress: address });
+    const res = await requestWithdrawal({ telegramId: user.telegramUser.id, amount, currency: withdrawCurrency, walletAddress: address });
+    if (!res?.success) {
+      const messages: Record<string, string> = {
+        wallet_not_verified: "Verify your wallet first",
+        insufficient_balance: "Your balance is not enough for this withdrawal",
+        pending_request_exists: "You already have a pending withdrawal for this currency",
+        no_wallet: "Connect your TON wallet first",
+      };
+      toast({ title: "Withdrawal failed", description: messages[res?.error ?? ""] ?? "Please try again", variant: "destructive" });
+      return;
+    }
     toast({ title: "Withdrawal Requested", description: `${amount} ${withdrawCurrency.toUpperCase()} submitted` });
     setWithdrawOpen(false);
     setWithdrawAmount("");
