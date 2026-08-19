@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Power, Lock, ArrowDownToLine, ArrowUpFromLine, ShieldCheck, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PaymentError, sendTonPayment, TON_FEE_BUFFER } from "@/lib/ton";
-import { createTransaction, isWalletVerified, verifyTonOnChain } from "@/lib/game-api";
+import { creditDepositWithIntent, isWalletVerified, requestWithdrawal, verifyTonOnChain, verifyWalletWithIntent } from "@/lib/game-api";
 import { payWithStars, STARS_PRICES, type StarsProductId } from "@/lib/stars";
 import TelegramStar from "@/components/TelegramStar";
 import { useCoinPrices, formatUsd } from "@/hooks/use-coin-prices";
