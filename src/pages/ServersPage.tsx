@@ -125,9 +125,8 @@ const ServersPage = () => {
       await purchaseServerForTelegram({
         telegramId: user.telegramUser.id,
         serverId: server.id,
-        tonPaid: transaction.amountTon,
+        intentId: transaction.intentId,
         walletAddress,
-        txHash: verification.tx_hash || transaction?.boc,
       });
 
       await refreshProfile();

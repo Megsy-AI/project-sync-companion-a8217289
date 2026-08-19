@@ -10445,6 +10445,7 @@ export type Database = {
           boc: string | null
           confirmed_at: string | null
           created_at: string
+          credited_at: string | null
           discount_pct: number
           discount_reason: string | null
           expires_at: string
@@ -10465,6 +10466,7 @@ export type Database = {
           boc?: string | null
           confirmed_at?: string | null
           created_at?: string
+          credited_at?: string | null
           discount_pct?: number
           discount_reason?: string | null
           expires_at?: string
@@ -10485,6 +10487,7 @@ export type Database = {
           boc?: string | null
           confirmed_at?: string | null
           created_at?: string
+          credited_at?: string | null
           discount_pct?: number
           discount_reason?: string | null
           expires_at?: string
@@ -12598,9 +12601,10 @@ export type Database = {
         | { Args: { _telegram_id: number }; Returns: Json }
         | { Args: { _telegram_id: number; _tier?: string }; Returns: Json }
       ad_watch_get_progress: { Args: { _telegram_id: number }; Returns: Json }
-      ad_watch_increment:
-        | { Args: { _telegram_id: number }; Returns: Json }
-        | { Args: { _telegram_id: number; _tier?: string }; Returns: Json }
+      ad_watch_increment: {
+        Args: { _telegram_id: number; _tier?: string }
+        Returns: Json
+      }
       add_credits: {
         Args: { p_amount: number; p_description?: string; p_user_id: string }
         Returns: Json
@@ -12688,6 +12692,32 @@ export type Database = {
       }
       ai_activate_plan: {
         Args: { _plan: string; _price: number; _profile_id: string }
+        Returns: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          images_used: number
+          period_start: string
+          plan: string
+          profile_id: string
+          status: string
+          updated_at: string
+          videos_used: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_subscriptions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      ai_activate_plan_with_intent: {
+        Args: {
+          _intent_id: string
+          _plan: string
+          _profile_id: string
+          _telegram_id: number
+        }
         Returns: {
           created_at: string
           expires_at: string | null
@@ -12897,6 +12927,10 @@ export type Database = {
           _model_id: string
         }
         Returns: Json
+      }
+      consume_ton_intent: {
+        Args: { _action: string; _intent_id: string; _telegram_id: number }
+        Returns: number
       }
       create_notification: {
         Args: {
@@ -13360,12 +13394,33 @@ export type Database = {
         }
         Returns: Json
       }
+      purchase_battle_item_with_intent: {
+        Args: {
+          _category: string
+          _intent_id: string
+          _package_key: string
+          _package_name: string
+          _quantity: number
+          _telegram_id: number
+          _wallet_address?: string
+        }
+        Returns: Json
+      }
       purchase_server_for_telegram: {
         Args: {
           _server_id: string
           _telegram_id: number
           _ton_paid: number
           _tx_hash?: string
+          _wallet_address?: string
+        }
+        Returns: Json
+      }
+      purchase_server_with_intent: {
+        Args: {
+          _intent_id: string
+          _server_id: string
+          _telegram_id: number
           _wallet_address?: string
         }
         Returns: Json

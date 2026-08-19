@@ -231,37 +231,37 @@ export const verifyTonOnChain = async (
   return await res.json();
 };
 
-// ── Purchases (only called AFTER on-chain verification) ──
+// ── Purchases ──
+// The server derives the paid amount from the confirmed payment intent and can
+// only credit each intent once, so the client never supplies a price.
 export const purchaseServerForTelegram = async (args: {
-  telegramId: number; serverId: string; tonPaid: number;
-  walletAddress?: string; txHash?: string;
+  telegramId: number; serverId: string; intentId: string; walletAddress?: string;
 }) => {
-  return callRpc<{ success: boolean; transactionId: string; referralReward: number }>("purchase_server_for_telegram", {
+  return callRpc<{ success: boolean; transactionId: string; referralReward: number }>("purchase_server_with_intent", {
     _telegram_id: args.telegramId,
     _server_id: args.serverId,
-    _ton_paid: args.tonPaid,
+    _intent_id: args.intentId,
     _wallet_address: args.walletAddress ?? null,
-    _tx_hash: args.txHash ?? null,
   });
 };
 
 export const purchaseBattleItemForTelegram = async (args: {
   telegramId: number; category: string; packageKey: string; packageName: string;
-  quantity: number; tonPaid: number; walletAddress?: string; txHash?: string;
+  quantity: number; intentId: string; walletAddress?: string;
 }) => {
   return callRpc<{ success: boolean; transactionId: string; referralReward: number; inventory: BattleInventoryItem[] }>(
-    "purchase_battle_item_for_telegram", {
+    "purchase_battle_item_with_intent", {
       _telegram_id: args.telegramId,
       _category: args.category,
       _package_key: args.packageKey,
       _package_name: args.packageName,
       _quantity: args.quantity,
-      _ton_paid: args.tonPaid,
+      _intent_id: args.intentId,
       _wallet_address: args.walletAddress ?? null,
-      _tx_hash: args.txHash ?? null,
     }
   );
 };
+
 
 // ── Admin ──
 export const isTelegramAdmin = async (telegramId: number) => {
