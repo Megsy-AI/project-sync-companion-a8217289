@@ -9,7 +9,7 @@ const win = () => window as any;
 
 const RICHADS_PUB_ID = env.VITE_RICHADS_PUB_ID || win().RICHADS_PUB_ID || "998796";
 /** One RichAds app per enabled format (e.g. Interstitial, Playable). */
-const RICHADS_APP_IDS = (env.VITE_RICHADS_APP_IDS || win().RICHADS_APP_IDS || "405074,405075")
+const RICHADS_APP_IDS = (env.VITE_RICHADS_APP_IDS || win().RICHADS_APP_IDS || win().RICHADS_APP_ID || "8586")
   .split(",")
   .map((s: string) => s.trim())
   .filter(Boolean);
@@ -142,35 +142,52 @@ const getRichController = async (appId: string): Promise<any> => {
   return controller;
 };
 
-/** Only these exist in the live tg-ob.js bundle, highest paying first. */
-const RICH_METHODS = ["triggerInterstitialMixed", "triggerNativeNotification"] as const;
+type RichAdMethod =
+  | "triggerInterstitialMixed"
+  | "triggerInterstitialVideo"
+  | "triggerInterstitialBanner"
+  | "triggerNativeNotification";
 
-const showFromApp = async (appId: string): Promise<boolean> => {
-  const controller = await getRichController(appId);
-  if (!controller) return false;
-
-  // activeWidgetTypesMap is filled server-side with the formats enabled for
-  // this app; when present we can skip triggers that will silently no-fill.
+const methodsForController = (controller: any): RichAdMethod[] => {
   const enabled = new Set<string>();
   const typeMap = controller.activeWidgetTypesMap;
   if (typeMap && typeof typeMap.keys === "function") {
     for (const type of typeMap.keys()) enabled.add(String(type).toUpperCase());
   }
 
-  const allowed = (method: string) => {
-    if (!enabled.size) return true;
-    if (method === "triggerInterstitialMixed") {
-      return [...enabled].some(
-        (t) => t.includes("INTERSTITIAL") || t.includes("VIDEO") || t.includes("PLAYABLE"),
-      );
-    }
-    return [...enabled].some((t) => t.includes("PUSH") || t.includes("NATIVE"));
-  };
+  // The SDK configuration for app 8586 exposes INTERSTITIAL_MIXED_TRIGGER.
+  // Prefer exactly the format RichAds enabled instead of trying unrelated
+  // formats that can produce a misleading no-fill response.
+  if ([...enabled].some((type) => type.includes("INTERSTITIAL_MIXED_TRIGGER"))) {
+    return ["triggerInterstitialMixed"];
+  }
 
-  for (const method of RICH_METHODS) {
+  const methods: RichAdMethod[] = [];
+  if ([...enabled].some((type) => type.includes("VIDEO"))) {
+    methods.push("triggerInterstitialVideo");
+  }
+  if ([...enabled].some((type) => type.includes("BANNER"))) {
+    methods.push("triggerInterstitialBanner");
+  }
+  if ([...enabled].some((type) => type.includes("PUSH") || type.includes("NATIVE"))) {
+    methods.push("triggerNativeNotification");
+  }
+
+  // Older SDK builds do not expose activeWidgetTypesMap. The documented
+  // interstitial methods are safer fallbacks than native notifications.
+  return methods.length
+    ? methods
+    : ["triggerInterstitialVideo", "triggerInterstitialBanner", "triggerInterstitialMixed"];
+};
+
+const showFromApp = async (appId: string): Promise<boolean> => {
+  const controller = await getRichController(appId);
+  if (!controller) return false;
+
+  for (const method of methodsForController(controller)) {
     const fn = controller[method];
-    if (typeof fn !== "function" || !allowed(method)) continue;
-    const budget = method === "triggerInterstitialMixed" ? 25000 : 8000;
+    if (typeof fn !== "function") continue;
+    const budget = method === "triggerNativeNotification" ? 10000 : 35000;
     try {
       const out = fn.call(controller);
       const res =
@@ -178,8 +195,9 @@ const showFromApp = async (appId: string): Promise<boolean> => {
           ? await withTimeout(out, budget, `richads ${method}`)
           : out;
 
-      // The SDK reports no-fill as `false` / "Ads not found".
-      if (res === false) {
+      // RichAds resolves after the ad lifecycle completes and rejects on
+      // no-fill/error. Keep the false guard for older SDK variants.
+      if (res === false || (res && typeof res === "object" && "success" in res && !res.success)) {
         lastAdError = `richads ${appId} ${method}: Ads not found`;
         continue;
       }
