@@ -8,8 +8,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DEFAULT_ORIGIN = "https://megsy.online";
-const ICON_URL = "https://megsy.online/images/nova-logo.png";
+const DEFAULT_ORIGIN = "https://www.megsy.online";
+const ICON_URL = "https://www.megsy.online/images/nova-logo.png";
 
 const ALLOWED_HOST_SUFFIXES = [
   ".lovable.app",
