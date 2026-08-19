@@ -76,8 +76,8 @@ const AttackShopPage = () => {
       await purchaseBattleItemForTelegram({
         telegramId: user.telegramUser.id,
         category, packageKey: pkg.key, packageName: pkg.name,
-        quantity: pkg.quantity, tonPaid: transaction.amountTon,
-        walletAddress, txHash: verification.tx_hash || transaction?.boc,
+        quantity: pkg.quantity, intentId: transaction.intentId,
+        walletAddress,
       });
 
       await refreshProfile();
