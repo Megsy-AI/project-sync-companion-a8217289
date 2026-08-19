@@ -244,10 +244,11 @@ export default function AiPage() {
         toast.error("Payment not found on-chain yet. Try again in a moment.");
         return;
       }
-      const { data, error } = await (supabase as any).rpc("ai_activate_plan", {
+      const { data, error } = await (supabase as any).rpc("ai_activate_plan_with_intent", {
         _profile_id: profileId,
+        _telegram_id: user.telegramUser.id,
         _plan: "unlimited",
-        _price: 0,
+        _intent_id: tx.intentId,
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
