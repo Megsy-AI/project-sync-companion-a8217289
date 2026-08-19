@@ -94,11 +94,12 @@ export const isInsideTelegram = () => !!win().Telegram?.WebApp?.initData;
 
 /* --------------------------------------------------------------- richads */
 
-let richController: any = null;
-let richInitialised = false;
+/** One initialised controller per appId (the SDK is per pubId+appId). */
+const controllers = new Map<string, any>();
 
-const getRichController = async (): Promise<any> => {
-  if (richController && richInitialised) return richController;
+const getRichController = async (appId: string): Promise<any> => {
+  const cached = controllers.get(appId);
+  if (cached) return cached;
 
   const loaded = await withTimeout(loadScript(RICHADS_SDK), 8000, "richads sdk").catch(
     () => false,
@@ -119,36 +120,33 @@ const getRichController = async (): Promise<any> => {
     return null;
   }
 
-  if (!richController) richController = new Ctor();
-
+  const controller = new Ctor();
   try {
     await withTimeout(
       Promise.resolve(
-        richController.initialize({
+        controller.initialize({
           pubId: String(RICHADS_PUB_ID),
-          appId: String(RICHADS_APP_ID),
+          appId: String(appId),
           debug: false,
         }),
       ),
       12000,
       "richads init",
     );
-    richInitialised = true;
   } catch (e: any) {
-    richInitialised = false;
-    richController = null; // drop the half-initialised instance
-    lastAdError = `richads init: ${e?.message ?? "failed"}`;
+    lastAdError = `richads init ${appId}: ${e?.message ?? "failed"}`;
     return null;
   }
 
-  return richController;
+  controllers.set(appId, controller);
+  return controller;
 };
 
 /** Only these exist in the live tg-ob.js bundle, highest paying first. */
 const RICH_METHODS = ["triggerInterstitialMixed", "triggerNativeNotification"] as const;
 
-const showRichAds = async (): Promise<boolean> => {
-  const controller = await getRichController();
+const showFromApp = async (appId: string): Promise<boolean> => {
+  const controller = await getRichController(appId);
   if (!controller) return false;
 
   // activeWidgetTypesMap is filled server-side with the formats enabled for
@@ -162,7 +160,9 @@ const showRichAds = async (): Promise<boolean> => {
   const allowed = (method: string) => {
     if (!enabled.size) return true;
     if (method === "triggerInterstitialMixed") {
-      return [...enabled].some((t) => t.includes("INTERSTITIAL") || t.includes("VIDEO"));
+      return [...enabled].some(
+        (t) => t.includes("INTERSTITIAL") || t.includes("VIDEO") || t.includes("PLAYABLE"),
+      );
     }
     return [...enabled].some((t) => t.includes("PUSH") || t.includes("NATIVE"));
   };
@@ -170,7 +170,7 @@ const showRichAds = async (): Promise<boolean> => {
   for (const method of RICH_METHODS) {
     const fn = controller[method];
     if (typeof fn !== "function" || !allowed(method)) continue;
-    const budget = method === "triggerInterstitialMixed" ? 25000 : 10000;
+    const budget = method === "triggerInterstitialMixed" ? 25000 : 8000;
     try {
       const out = fn.call(controller);
       const res =
@@ -180,20 +180,22 @@ const showRichAds = async (): Promise<boolean> => {
 
       // The SDK reports no-fill as `false` / "Ads not found".
       if (res === false) {
-        lastAdError = `richads ${method}: Ads not found`;
+        lastAdError = `richads ${appId} ${method}: Ads not found`;
         continue;
       }
       return true;
     } catch (e: any) {
-      lastAdError = `richads ${method}: ${e?.message ?? "no fill"}`;
+      lastAdError = `richads ${appId} ${method}: ${e?.message ?? "no fill"}`;
     }
   }
+  return false;
+};
 
-  if (!lastAdError) {
-    lastAdError = enabled.size
-      ? "No ad fill for the enabled RichAds formats"
-      : "No ad format is enabled for this Mini App";
+const showRichAds = async (): Promise<boolean> => {
+  for (const appId of RICHADS_APP_IDS) {
+    if (await showFromApp(appId)) return true;
   }
+  if (!lastAdError) lastAdError = "No ad available right now";
   return false;
 };
 
