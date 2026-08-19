@@ -12967,6 +12967,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      credit_ton_deposit_with_intent: {
+        Args: {
+          _intent_id: string
+          _telegram_id: number
+          _wallet_address?: string
+        }
+        Returns: Json
+      }
       deduct_credits: {
         Args: {
           p_action_type: string
@@ -13501,6 +13509,15 @@ export type Database = {
         }
         Returns: string
       }
+      request_withdrawal_for_telegram: {
+        Args: {
+          _amount: number
+          _currency: string
+          _telegram_id: number
+          _wallet_address?: string
+        }
+        Returns: Json
+      }
       search_attachment_chunks: {
         Args: {
           p_conversation_id: string
@@ -13598,6 +13615,14 @@ export type Database = {
         Returns: undefined
       }
       verify_external_api_key: { Args: { p_key_hash: string }; Returns: string }
+      verify_wallet_with_intent: {
+        Args: {
+          _intent_id: string
+          _telegram_id: number
+          _wallet_address?: string
+        }
+        Returns: Json
+      }
       watchdog_resume_background: { Args: never; Returns: number }
       watchdog_resume_operator: { Args: never; Returns: undefined }
       watchdog_resume_research: { Args: never; Returns: number }

@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Power, Lock, ArrowDownToLine, ArrowUpFromLine, ShieldCheck, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PaymentError, sendTonPayment, TON_FEE_BUFFER } from "@/lib/ton";
-import { createTransaction, isWalletVerified, verifyTonOnChain } from "@/lib/game-api";
+import { creditDepositWithIntent, isWalletVerified, requestWithdrawal, verifyTonOnChain, verifyWalletWithIntent } from "@/lib/game-api";
 import { payWithStars, STARS_PRICES, type StarsProductId } from "@/lib/stars";
 import TelegramStar from "@/components/TelegramStar";
 import { useCoinPrices, formatUsd } from "@/hooks/use-coin-prices";
@@ -34,7 +34,7 @@ const STAR_PACKS: { id: StarsProductId; usdt: number }[] = [
 ];
 
 const WalletPage = () => {
-  const { user } = useApp();
+  const { user, refreshProfile } = useApp();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [tonConnectUI] = useTonConnectUI();
@@ -190,8 +190,10 @@ const WalletPage = () => {
       const tx = await sendTonPayment(tonConnectUI, { amountTon: amount, telegramId: user.telegramUser.id, action: "deposit" });
       const verification = await verifyTonOnChain(tx.intentId, tx.boc, tonConnectUI.account?.address);
       if (!verification.verified) throw new PaymentError("failed", verification.error ?? "Payment is still confirming");
-      await createTransaction({ telegramId: user.telegramUser.id, type: "deposit", amount, currency: "ton", walletAddress: address, txHash: verification.tx_hash });
-      toast({ title: "Deposit Sent", description: `${amount} Gram submitted` });
+      const credit = await creditDepositWithIntent({ telegramId: user.telegramUser.id, intentId: tx.intentId, walletAddress: address });
+      if (!credit?.success) throw new PaymentError("failed", "Payment confirmed but crediting failed. Contact support.");
+      await refreshProfile();
+      toast({ title: "Deposit credited", description: `${credit.amount ?? amount} Gram added to your balance` });
       setDepositOpen(false);
       setDepositAmount("");
     } catch (err) {
@@ -241,7 +243,17 @@ const WalletPage = () => {
       toast({ title: `Minimum ${min} ${withdrawCurrency.toUpperCase()}`, variant: "destructive" });
       return;
     }
-    await createTransaction({ telegramId: user.telegramUser.id, type: "withdrawal", amount, currency: withdrawCurrency, walletAddress: address });
+    const res = await requestWithdrawal({ telegramId: user.telegramUser.id, amount, currency: withdrawCurrency, walletAddress: address });
+    if (!res?.success) {
+      const messages: Record<string, string> = {
+        wallet_not_verified: "Verify your wallet first",
+        insufficient_balance: "Your balance is not enough for this withdrawal",
+        pending_request_exists: "You already have a pending withdrawal for this currency",
+        no_wallet: "Connect your TON wallet first",
+      };
+      toast({ title: "Withdrawal failed", description: messages[res?.error ?? ""] ?? "Please try again", variant: "destructive" });
+      return;
+    }
     toast({ title: "Withdrawal Requested", description: `${amount} ${withdrawCurrency.toUpperCase()} submitted` });
     setWithdrawOpen(false);
     setWithdrawAmount("");
@@ -258,14 +270,12 @@ const WalletPage = () => {
       });
       const verification = await verifyTonOnChain(tx.intentId, tx.boc, tonConnectUI.account?.address);
       if (!verification.verified) throw new PaymentError("failed", verification.error ?? "Payment is still confirming");
-      await createTransaction({
+      const marked = await verifyWalletWithIntent({
         telegramId: user.telegramUser.id,
-        type: "wallet_verification",
-        amount: VERIFY_AMOUNT,
-        currency: "ton",
+        intentId: tx.intentId,
         walletAddress: address,
-        txHash: verification.tx_hash || null,
       });
+      if (!marked?.success) throw new PaymentError("failed", "Payment confirmed but verification failed. Contact support.");
       setIsVerified(true);
       setVerifyOpen(false);
       toast({ title: "Wallet verified", description: "Your wallet ownership is confirmed" });

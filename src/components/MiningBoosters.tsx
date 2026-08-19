@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useTonConnectUI } from "@tonconnect/ui-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentError, sendTonPayment } from "@/lib/ton";
-import { verifyTonOnChain } from "@/lib/game-api";
+import { getBattleInventoryForTelegram, purchaseBattleItemForTelegram, verifyTonOnChain } from "@/lib/game-api";
 
 const BASE_PRICE = 0.5;
 
 type BoostKind = "time" | "yield";
 
+const packageKey = (kind: BoostKind) => `mining_boost_${kind}`;
 const storageKey = (id: number | string, kind: BoostKind) => `nova-boost-${kind}-${id}`;
 
 const readLevel = (id: number | string, kind: BoostKind) => {
@@ -33,6 +34,31 @@ const MiningBoosters = () => {
   }));
   const [busy, setBusy] = useState<BoostKind | null>(null);
 
+  // Paid upgrades must survive a cache wipe or a device change, so the levels
+  // come from the server inventory; localStorage is only an offline fallback.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const inventory = await getBattleInventoryForTelegram(id);
+        if (cancelled || !Array.isArray(inventory)) return;
+        const levelFor = (kind: BoostKind) =>
+          Number(inventory.find((row) => row.package_key === packageKey(kind))?.total_purchased ?? 0);
+        const next = { time: levelFor("time"), yield: levelFor("yield") };
+        setLevels((prev) => ({
+          time: Math.max(prev.time, next.time),
+          yield: Math.max(prev.yield, next.yield),
+        }));
+        localStorage.setItem(storageKey(id, "time"), String(next.time));
+        localStorage.setItem(storageKey(id, "yield"), String(next.yield));
+      } catch {
+        /* keep the cached levels */
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [id]);
+
   const buy = async (kind: BoostKind) => {
     const level = levels[kind];
     const amountTon = priceForLevel(level);
@@ -47,6 +73,19 @@ const MiningBoosters = () => {
       const verification = await verifyTonOnChain(tx.intentId, tx.boc, tonConnectUI.account?.address);
       if (!verification.verified) {
         toast({ title: "Payment not verified", variant: "destructive" });
+        return;
+      }
+      const purchase = await purchaseBattleItemForTelegram({
+        telegramId: id,
+        category: "boost",
+        packageKey: packageKey(kind),
+        packageName: kind === "time" ? "Longer mining cycle" : "Mining rewards multiplier",
+        quantity: 1,
+        intentId: tx.intentId,
+        walletAddress: tonConnectUI.account?.address,
+      });
+      if (!purchase?.success) {
+        toast({ title: "Payment confirmed but not applied", description: "Contact support", variant: "destructive" });
         return;
       }
       const next = level + 1;
@@ -70,6 +109,7 @@ const MiningBoosters = () => {
       setBusy(null);
     }
   };
+
 
   const rows: { kind: BoostKind; title: string; effect: string }[] = [
     { kind: "time", title: "Longer cycle", effect: `+${(levels.time + 1) * 2}h` },
