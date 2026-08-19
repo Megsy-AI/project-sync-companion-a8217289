@@ -129,6 +129,28 @@ export const fetchPublicProfiles = async (ids: string[]): Promise<PublicProfile[
 export const isWalletVerified = (telegramId: number) =>
   callRpc<boolean>("game_is_wallet_verified", { _telegram_id: telegramId });
 
+/** Credits a confirmed on-chain deposit to the player balance (one time per payment). */
+export const creditDepositWithIntent = (args: { telegramId: number; intentId: string; walletAddress?: string | null }) =>
+  callRpc<{ success: boolean; error?: string; amount?: number; tonBalance?: number }>(
+    "credit_ton_deposit_with_intent",
+    { _telegram_id: args.telegramId, _intent_id: args.intentId, _wallet_address: args.walletAddress ?? null },
+  );
+
+/** Marks the wallet as verified after the verification payment is confirmed on chain. */
+export const verifyWalletWithIntent = (args: { telegramId: number; intentId: string; walletAddress?: string | null }) =>
+  callRpc<{ success: boolean; error?: string; verified?: boolean }>(
+    "verify_wallet_with_intent",
+    { _telegram_id: args.telegramId, _intent_id: args.intentId, _wallet_address: args.walletAddress ?? null },
+  );
+
+/** Server-validated withdrawal request (checks verification, balance and duplicates). */
+export const requestWithdrawal = (args: { telegramId: number; amount: number; currency: "ton" | "usdt"; walletAddress?: string | null }) =>
+  callRpc<{ success: boolean; error?: string; id?: string; balance?: number }>(
+    "request_withdrawal_for_telegram",
+    { _telegram_id: args.telegramId, _amount: args.amount, _currency: args.currency, _wallet_address: args.walletAddress ?? null },
+  );
+
+
 export const createTransaction = (params: {
   telegramId: number; type: "deposit" | "withdrawal" | "wallet_verification";
   amount: number; currency: string; walletAddress?: string | null; txHash?: string | null; status?: string;
